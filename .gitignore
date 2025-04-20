@@ -1,0 +1,92 @@
+# Visual Studio workspace & IntelliSense cache
+.vs/
+
+# (optionally) any stray index/db files
+FileContentIndex*
+*.db
+
+# ===== Visual Studio =====
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# VS Code workspace (if you ever use it)
+.vscode/
+
+# Visual Studio database files
+*.VC.db
+*.VC.opendb
+ipch/
+
+# Visual Studio temporary build files
+*.log
+*.tlog
+*.lastbuildstate
+
+# ================================
+# ===== Build / Output dirs =====
+# You want to commit your source & docs — not the compiled EXEs, PDBs, etc.
+
+# Common bin/obj
+[Bb]in/
+[Oo]bj/
+
+# Configuration‑specific subfolders
+**/Debug/
+**/Release/
+**/x64/Debug/
+**/x64/Release/
+**/Win32/Debug/
+**/Win32/Release/
+
+# CMake build (if you ever use CMake)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+build/
+
+# =====================
+# ===== C/C++ objs =====
+*.obj
+*.o
+*.lib
+*.a
+*.exp
+
+# Precompiled headers
+*.pch
+
+# Program database
+*.pdb
+
+# ======================
+# ===== Executables =====
+*.exe
+*.dll
+*.so
+*.dylib
+
+# =====================
+# ===== Misc. temp =====
+*.tmp
+*.log
+*.vspscc
+*.vssscc
+*.orig
+*~
+
+# ========================
+# ===== OS / Editor =====
+# macOS
+.DS_Store
+
+# Windows thumbnail cache
+Thumbs.db
+ehthumbs.db
+
+# Editor backups
+*.[Bb]ak
+*.backup
