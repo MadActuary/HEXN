@@ -30,6 +30,12 @@
     <ClInclude Include="scr\Model.h" />
     <ClInclude Include="scr\Payoff.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ICON.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="docs\HEXN_ICON.ico" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
