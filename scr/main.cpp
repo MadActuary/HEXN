@@ -1,17 +1,23 @@
 #include <random>
 
+
 #include "Model.h"
 #include "Payoff.h"
+#include "DanishPublicBenefits.h"
 #include "Engine.h"
+
+
+using namespace std::chrono;
+sys_days today = floor<days>(system_clock::now());
 
 int main() {
 
 
     Model model("./docs/transitions.csv", "A");
 
-    Payoff payoff(100);
+    DanishPublicBenefits mydanishPublicBenefits(100.00, 3, today);
 
-    Engine engine(model, payoff, 10000);
+    Engine engine(model, mydanishPublicBenefits, 10000);
 
     auto result = engine.getCashflow(2); // Second moment = variance component
 

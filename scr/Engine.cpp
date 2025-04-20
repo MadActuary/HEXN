@@ -37,7 +37,7 @@ std::unordered_map<std::string, std::vector<double>> Engine::getCashflow(int mom
         std::vector<double> values(steps + 1, 0.0);
         for (int t = 0; t <= steps; ++t) {
             double prob = static_cast<double>(counts[t]) / simulations;
-            double val = payoff.evaluate(state, moment);
+            double val = payoff.evaluate(state, model.getDurationInState());
             values[t] = prob * val;
             total[t] += values[t];
         }

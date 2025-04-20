@@ -7,6 +7,9 @@
     <Filter Include="Source Files">
       <UniqueIdentifier>{de39d934-dede-440a-bfd1-081c03302602}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Other">
+      <UniqueIdentifier>{1d2522c6-d748-4626-a645-7634dae7a8df}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="scr\Engine.cpp">
@@ -18,7 +21,7 @@
     <ClCompile Include="scr\Model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="scr\Payoff.cpp">
+    <ClCompile Include="scr\DanishPublicBenefits.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -35,11 +38,18 @@
     <ClInclude Include="scr\Payoff.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="scr\DanishPublicBenefits.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="ICON.rc" />
+    <Image Include="docs\HEXN_ICON.ico">
+      <Filter>Other</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="docs\HEXN_ICON.ico" />
+    <ResourceCompile Include="ICON.rc">
+      <Filter>Other</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

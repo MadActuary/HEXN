@@ -1,20 +1,14 @@
 #pragma once
-
 #include <string>
+#include <chrono>
 
 
-class Payoff
-{
-
+class Payoff {
 public:
+    using Date = std::chrono::sys_days;
 
-	explicit Payoff(int payment);
+    virtual ~Payoff() = default;
 
-	double evaluate(const std::string& state, int moment = 1) const;
-
-private: 
-
-	int paymentAmount;
+    virtual double evaluate(const std::string& state, size_t duration) const = 0;
 
 };
-

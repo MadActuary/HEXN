@@ -1,6 +1,6 @@
 #pragma once
 
-#include "payoff.h"
+#include "Payoff.h"
 
 #include <iostream>
 #include <fstream>

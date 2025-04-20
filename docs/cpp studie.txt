@@ -1,0 +1,24 @@
+operator()(const State& s) const noexcept {
+
+noexpect
+
+Alogritms library
+
+Chrono and date/date biblioteket 
+
+
+
+Mere sikkerhed med CSV filen 
+
+Lav en struct for tilstand, duration, udløbsdato, opgdt
+
+struct modelpoint
+{ 
+	double age;
+	double duration;
+	double durationSinceB;
+	double contractBenefit;
+	date terminationDate;
+	date opgdt;
+}; 
+
