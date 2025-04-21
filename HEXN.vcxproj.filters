@@ -10,6 +10,9 @@
     <Filter Include="Other">
       <UniqueIdentifier>{1d2522c6-d748-4626-a645-7634dae7a8df}</UniqueIdentifier>
     </Filter>
+    <Filter Include="scr">
+      <UniqueIdentifier>{cef8a9e9-53b6-4280-beca-b546a098c0f8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="scr\Engine.cpp">
