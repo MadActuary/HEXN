@@ -44,7 +44,7 @@
     <ClInclude Include="scr\DanishPublicBenefits.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ExecutionStats.h">
+    <ClInclude Include="scr\ExecutionStats.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

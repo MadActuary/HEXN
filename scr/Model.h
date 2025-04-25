@@ -78,25 +78,25 @@ public:
         return result;
     }
 
-    std::vector<std::pair<std::string, double>> getIntensities() const {
-        std::vector<std::pair<std::string, double>> result;
+    std::vector<std::pair<std::string, double>>& getIntensities() const {
+        intensityBuffer.clear();
         auto it = transitionsFromState.find(currentState);
-        if (it == transitionsFromState.end()) return result;
+        if (it == transitionsFromState.end()) return intensityBuffer;
 
         for (const auto& key : it->second) {
             const auto& values = transitionProbabilities.at(key);
             size_t d = getDuration(key.durationType);
             if (d < values.size()) {
-                result.emplace_back(key.to, values[d]);
+                intensityBuffer.emplace_back(key.to, values[d]);
             }
         }
-        return result;
+        return intensityBuffer;
     }
  
 
     void step(double uniformSample) {
-        auto options = getIntensities();    
-        
+        const auto& options = getIntensities();
+
         double cumulative = 0.0;
         for (const auto& [state, prob] : options) {
             cumulative += prob;
@@ -169,6 +169,8 @@ private:
     std::unordered_map<TransitionKey, std::vector<double>> transitionProbabilities;
 
     std::unordered_map<std::string, std::vector<TransitionKey>> transitionsFromState;
+
+    mutable std::vector<std::pair<std::string, double>> intensityBuffer;
 
     void loadCSV(const std::string& filename) {
         
