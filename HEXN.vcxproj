@@ -25,6 +25,7 @@
     <ClCompile Include="scr\Model.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ExecutionStats.h" />
     <ClInclude Include="scr\DanishPublicBenefits.h" />
     <ClInclude Include="scr\Engine.h" />
     <ClInclude Include="scr\loadCsv.h" />

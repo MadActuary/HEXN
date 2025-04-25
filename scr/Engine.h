@@ -12,7 +12,7 @@ public:
 
     Engine(Model& model, const Payoff& payoff, int simulations = 10000);
 
-    std::unordered_map<std::string, std::vector<double>> getCashflow(int moment = 1, int steps = 20);
+    std::unordered_map<std::string, std::vector<double>> getCashflow(int moment = 1, int steps = 120);
 
 private:
 

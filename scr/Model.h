@@ -34,6 +34,7 @@ namespace std {
 }
 
 class Model {
+
 public:
     Model(const std::string& csvFile, const std::string& initialState)
         : currentState(initialState), age(0), durationInState(0), durationSinceB(0)
@@ -65,10 +66,13 @@ public:
 
     std::vector<std::string> getConnectedStates() const {
         std::vector<std::string> result;
-        for (const auto& [key, values] : transitionProbabilities) {
-            if (key.from == currentState && getDuration(key.durationType) < values.size()) {
-                if (values[getDuration(key.durationType)] > 0.0)
-                    result.push_back(key.to);
+        auto it = transitionsFromState.find(currentState);
+        if (it == transitionsFromState.end()) return result;
+
+        for (const auto& key : it->second) {
+            const auto& values = transitionProbabilities.at(key);
+            if (getDuration(key.durationType) < values.size() && values[getDuration(key.durationType)] > 0.0) {
+                result.push_back(key.to);
             }
         }
         return result;
@@ -76,13 +80,14 @@ public:
 
     std::vector<std::pair<std::string, double>> getIntensities() const {
         std::vector<std::pair<std::string, double>> result;
-        for (const auto& [key, values] : transitionProbabilities) {
+        auto it = transitionsFromState.find(currentState);
+        if (it == transitionsFromState.end()) return result;
 
-            if (key.from == currentState) {
-                size_t d = getDuration(key.durationType);
-                if (d < values.size()) {
-                    result.emplace_back(key.to, values[d]);
-                }
+        for (const auto& key : it->second) {
+            const auto& values = transitionProbabilities.at(key);
+            size_t d = getDuration(key.durationType);
+            if (d < values.size()) {
+                result.emplace_back(key.to, values[d]);
             }
         }
         return result;
@@ -104,7 +109,7 @@ public:
     }
 
     std::unordered_map<std::string, std::vector<double>> getTransitionProbabilities(int n) {
-        const int steps = 20;
+        const int steps = 120;
         std::unordered_map<std::string, std::vector<int>> stateCounts;
 
         // Initialize counters for all possible states
@@ -152,12 +157,18 @@ public:
     }
 
 private:
+
     std::string currentState;
+
     size_t age;
+
     size_t durationInState;
+
     size_t durationSinceB;
 
     std::unordered_map<TransitionKey, std::vector<double>> transitionProbabilities;
+
+    std::unordered_map<std::string, std::vector<TransitionKey>> transitionsFromState;
 
     void loadCSV(const std::string& filename) {
         
@@ -191,6 +202,10 @@ private:
                 TransitionKey key{ fromStates[i], toStates[i], durations[i] };
                 transitionProbabilities[key].push_back(std::stod(values[i]));
             }
+        }
+
+        for (const auto& [key, _] : transitionProbabilities) {
+            transitionsFromState[key.from].push_back(key);
         }
     }
 
