@@ -16,7 +16,7 @@ void execute() {
 
     sys_days today = floor<days>(system_clock::now());
 
-    DanishPublicBenefits mydanishPublicBenefits(1.00, 0, today);
+    DanishPublicBenefits mydanishPublicBenefits(100, 0, today);
 
     Engine engine(model, mydanishPublicBenefits, 100000);
 
@@ -29,7 +29,7 @@ int main() {
     //execute();
 
     //Time measurement command
-    //auto stats = MeasureExecution(execute, 100, "test");
+    auto stats = MeasureExecution(execute, 100, "New benchmark");
 
     return 0;
 }
