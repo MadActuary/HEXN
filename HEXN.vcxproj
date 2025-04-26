@@ -25,9 +25,11 @@
     <ClCompile Include="scr\Model.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="formatDouble.h" />
     <ClInclude Include="scr\DanishPublicBenefits.h" />
     <ClInclude Include="scr\Engine.h" />
     <ClInclude Include="scr\ExecutionStats.h" />
+    <ClInclude Include="scr\formatDouble.h" />
     <ClInclude Include="scr\loadCsv.h" />
     <ClInclude Include="scr\Model.h" />
     <ClInclude Include="scr\Payoff.h" />

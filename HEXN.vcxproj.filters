@@ -47,6 +47,12 @@
     <ClInclude Include="scr\ExecutionStats.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="formatDouble.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\formatDouble.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="docs\HEXN_ICON.ico">

@@ -12,7 +12,7 @@ using namespace std::chrono;
 
 void execute() {
 
-    bool print = 1;
+    bool print = 0;
 
     Model model("../docs/transitions.csv", "A");
 
@@ -20,9 +20,9 @@ void execute() {
 
     DanishPublicBenefits mydanishPublicBenefits(1.00, 0, today);
 
-    Engine engine(model, mydanishPublicBenefits, 100000);
+    Engine engine(model, mydanishPublicBenefits, 100);
 
-    auto result = engine.getCashflow(1); // Second moment = variance component
+    auto result = engine.getCashflow(1, 120, true, "../docs/expectedPayments.CSV"); // Second moment = variance component
 
     if (print == 1) {
         for (const auto& [state, values] : result) {
@@ -36,10 +36,10 @@ void execute() {
 
 int main() {
 
-    execute();
+    //execute();
 
     //Time measurement command
-    //auto stats = MeasureExecution(execute, 5);
+    auto stats = MeasureExecution(execute, 1, "test");
 
     return 0;
 }
