@@ -86,7 +86,7 @@ Engine::getCashflow(int moment, int steps, bool print, const std::string& fileNa
 
             auto s = model.getCurrentState();
             auto d = model.getDurationInState();
-            double pv = payoff.evaluate(s, d);
+            double pv = pow(payoff.evaluate(s, d), moment);
 
             auto& vec = sums
                 .emplace(s, std::vector<double>(steps + 1, 0.0))

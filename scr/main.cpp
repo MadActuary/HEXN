@@ -12,26 +12,16 @@ using namespace std::chrono;
 
 void execute() {
 
-    bool print = 0;
-
     Model model("../docs/transitions.csv", "A");
 
     sys_days today = floor<days>(system_clock::now());
 
     DanishPublicBenefits mydanishPublicBenefits(1.00, 0, today);
 
-    Engine engine(model, mydanishPublicBenefits, 100);
+    Engine engine(model, mydanishPublicBenefits, 100000);
 
     auto result = engine.getCashflow(1, 120, true, "../docs/expectedPayments.CSV"); // Second moment = variance component
 
-    if (print == 1) {
-        for (const auto& [state, values] : result) {
-            std::cout << "State: " << state << "\n";
-            for (int t = 0; t <= 120; ++t) {
-                std::cout << "  Step " << t << ": " << values[t] << "\n";
-            }
-        }
-    }
 }
 
 int main() {
@@ -39,7 +29,7 @@ int main() {
     //execute();
 
     //Time measurement command
-    auto stats = MeasureExecution(execute, 1, "test");
+    //auto stats = MeasureExecution(execute, 100, "test");
 
     return 0;
 }
