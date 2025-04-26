@@ -16,18 +16,19 @@ std::unordered_map<std::string, std::vector<double>> Engine::getCashflow(int mom
     size_t originalInState = model.getDurationInState();
     size_t originalSinceB = model.getDurationSinceB();
 
-    std::vector<double> uniforms(steps);
+    std::vector<double> uniforms(steps * simulations);
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::mt19937 gen{ std::random_device{}() };
+    std::generate(uniforms.begin(), uniforms.end(), [&] { return dis(gen); });
 
     for (int i = 0; i < simulations; ++i) {
         model.reset(originalState, originalAge, originalInState, originalSinceB);
         stateCounts[model.getCurrentState()][0]++;
 
-        std::generate(uniforms.begin(), uniforms.end(), [&] { return dis(gen); });
+        
 
         for (int t = 1; t <= steps; ++t) {
-            model.step(uniforms[t - 1]);
+            model.step(uniforms[i*steps + t - 1]);
             stateCounts[model.getCurrentState()][t]++;
         }
     }
