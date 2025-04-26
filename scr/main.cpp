@@ -12,7 +12,7 @@ using namespace std::chrono;
 
 void execute() {
 
-    bool print = 1;
+    bool print = 0;
 
     Model model("../docs/transitions.csv", "A");
 
@@ -36,10 +36,10 @@ void execute() {
 
 int main() {
 
-    execute();
+    //execute();
 
     //Time measurement command
-    //auto stats = MeasureExecution(execute, 100);
+    auto stats = MeasureExecution(execute, 100);
 
     return 0;
 }

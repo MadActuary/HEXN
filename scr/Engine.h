@@ -14,6 +14,7 @@ public:
 
     std::unordered_map<std::string, std::vector<double>> getCashflow(int moment = 1, int steps = 120);
 
+
 private:
 
     Model& model;
@@ -21,4 +22,5 @@ private:
     const Payoff& payoff;
 
     int simulations;
+
 };

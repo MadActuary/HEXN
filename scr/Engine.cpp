@@ -4,6 +4,7 @@ Engine::Engine(Model& model, const Payoff& payoff, int simulations)
     : model(model), payoff(payoff), simulations(simulations) {}
 
 std::unordered_map<std::string, std::vector<double>> Engine::getCashflow(int moment, int steps) {
+
     std::unordered_map<std::string, std::vector<int>> stateCounts;
     for (const auto& [key, _] : model.getTransitionMap()) {
         stateCounts[key.from] = std::vector<int>(steps + 1, 0);
@@ -15,16 +16,18 @@ std::unordered_map<std::string, std::vector<double>> Engine::getCashflow(int mom
     size_t originalInState = model.getDurationInState();
     size_t originalSinceB = model.getDurationSinceB();
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
+    std::vector<double> uniforms(steps);
     std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::mt19937 gen{ std::random_device{}() };
 
     for (int i = 0; i < simulations; ++i) {
         model.reset(originalState, originalAge, originalInState, originalSinceB);
         stateCounts[model.getCurrentState()][0]++;
 
+        std::generate(uniforms.begin(), uniforms.end(), [&] { return dis(gen); });
+
         for (int t = 1; t <= steps; ++t) {
-            model.step(dis(gen));
+            model.step(uniforms[t - 1]);
             stateCounts[model.getCurrentState()][t]++;
         }
     }
@@ -49,6 +52,7 @@ std::unordered_map<std::string, std::vector<double>> Engine::getCashflow(int mom
     return cashflows;
 
 }
+
 
 
 
