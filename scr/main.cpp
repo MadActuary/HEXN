@@ -39,7 +39,7 @@ int main() {
     //execute();
 
     //Time measurement command
-    auto stats = MeasureExecution(execute, 100);
+    auto stats = MeasureExecution(execute, 10);
 
     return 0;
 }

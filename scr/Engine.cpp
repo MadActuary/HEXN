@@ -25,10 +25,10 @@ std::unordered_map<std::string, std::vector<double>> Engine::getCashflow(int mom
         model.reset(originalState, originalAge, originalInState, originalSinceB);
         stateCounts[model.getCurrentState()][0]++;
 
-        
+        auto base = uniforms.data() + i * steps;
 
         for (int t = 1; t <= steps; ++t) {
-            model.step(uniforms[i*steps + t - 1]);
+            model.step(base[t - 1]);
             stateCounts[model.getCurrentState()][t]++;
         }
     }
