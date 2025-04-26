@@ -12,13 +12,13 @@ using namespace std::chrono;
 
 void execute() {
 
-    bool print = 0;
+    bool print = 1;
 
     Model model("../docs/transitions.csv", "A");
 
     sys_days today = floor<days>(system_clock::now());
 
-    DanishPublicBenefits mydanishPublicBenefits(100.00, 3, today);
+    DanishPublicBenefits mydanishPublicBenefits(1.00, 0, today);
 
     Engine engine(model, mydanishPublicBenefits, 100000);
 
@@ -36,10 +36,10 @@ void execute() {
 
 int main() {
 
-    //execute();
+    execute();
 
     //Time measurement command
-    auto stats = MeasureExecution(execute, 5);
+    //auto stats = MeasureExecution(execute, 5);
 
     return 0;
 }

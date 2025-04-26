@@ -1,55 +1,76 @@
-#include "Engine.h"
+﻿#include "Engine.h"
 
 Engine::Engine(Model& model, const Payoff& payoff, int simulations)
     : model(model), payoff(payoff), simulations(simulations) {}
 
-std::unordered_map<std::string, std::vector<double>> Engine::getCashflow(int moment, int steps) {
-    std::unordered_map<std::string, std::vector<int>> stateCounts;
-    for (const auto& [key, _] : model.getTransitionMap()) {
-        stateCounts[key.from] = std::vector<int>(steps + 1, 0);
-        stateCounts[key.to] = std::vector<int>(steps + 1, 0);
-    }
+std::unordered_map<std::string, std::vector<double>>
+Engine::getCashflow(int /*moment*/, int steps) {
+    // 1) Prepare accumulators
+    //   sums[state][t] = sum of payoffs at time t for that state
+    std::unordered_map<std::string, std::vector<double>> sums;
+    std::vector<double> totalSums(steps + 1, 0.0);
 
-    std::string originalState = model.getCurrentState();
-    size_t originalAge = model.getAge();
-    size_t originalInState = model.getDurationInState();
-    size_t originalSinceB = model.getDurationSinceB();
+    // 2) Remember original model‐state
+    std::string origState = model.getCurrentState();
+    size_t      origAge = model.getAge();
+    size_t      origInState = model.getDurationInState();
+    size_t      origSinceB = model.getDurationSinceB();
 
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
 
-    for (int i = 0; i < simulations; ++i) {
-        model.reset(originalState, originalAge, originalInState, originalSinceB);
-        stateCounts[model.getCurrentState()][0]++;
+    // 3) Monte Carlo
+    for (int sim = 0; sim < simulations; ++sim) {
+        model.reset(origState, origAge, origInState, origSinceB);
 
+        // t = 0
+        {
+            auto s = model.getCurrentState();
+            auto d = model.getDurationInState();
+            double pv = payoff.evaluate(s, d);
+            auto& vec = sums
+                .emplace(s, std::vector<double>(steps + 1, 0.0))
+                .first->second;
+            vec[0] += pv;
+            totalSums[0] += pv;
+        }
+
+        // t = 1 … steps
         for (int t = 1; t <= steps; ++t) {
-            model.step(dis(gen));
-            stateCounts[model.getCurrentState()][t]++;
+            double u = dis(gen);
+            model.step(u);
+
+            auto s = model.getCurrentState();
+            auto d = model.getDurationInState();
+            double pv = payoff.evaluate(s, d);
+
+            auto& vec = sums
+                .emplace(s, std::vector<double>(steps + 1, 0.0))
+                .first->second;
+            vec[t] += pv;
+            totalSums[t] += pv;
         }
     }
 
+    // 4) Build averages
     std::unordered_map<std::string, std::vector<double>> cashflows;
-
-    std::vector<double> total(steps + 1, 0.0);
-
-    for (const auto& [state, counts] : stateCounts) {
-        std::vector<double> values(steps + 1, 0.0);
+    for (auto& entry : sums) {
+        const auto& state = entry.first;
+        auto& sumV = entry.second;
+        std::vector<double> avg(steps + 1);
         for (int t = 0; t <= steps; ++t) {
-            double prob = static_cast<double>(counts[t]) / simulations;
-            double val = payoff.evaluate(state, model.getDurationInState());
-            values[t] = prob * val;
-            total[t] += values[t];
+            avg[t] = sumV[t] / simulations;
         }
-        cashflows[state] = values;
+        cashflows[state] = std::move(avg);
     }
 
-    cashflows["Total"] = total;
+    // 5) Total
+    std::vector<double> totalAvg(steps + 1);
+    for (int t = 0; t <= steps; ++t) {
+        totalAvg[t] = totalSums[t] / simulations;
+    }
+    cashflows["Total"] = std::move(totalAvg);
 
     return cashflows;
-
 }
-
-
-
-
