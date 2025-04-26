@@ -12,238 +12,175 @@
 #include <stdexcept>
 #include <iomanip>
 
-struct TransitionKey {
+// Use an enum for duration types instead of strings
+enum class DurationType { Age = 0, Visit = 1, State = 2 };
 
-    std::string from;
-    std::string to;
-    std::string durationType;
-
-    bool operator==(const TransitionKey& other) const {
-        return from == other.from && to == other.to && durationType == other.durationType;
-    }
+struct OutTransition {
+    int toIndex;                       // target state index
+    DurationType durationType;         // which duration to use
+    std::vector<double> probabilities; // probability vector by duration
 };
 
-// Hash function for TransitionKey
-namespace std {
-    template <>
-    struct hash<TransitionKey> {
-        std::size_t operator()(const TransitionKey& k) const {
-            return hash<std::string>()(k.from) ^ hash<std::string>()(k.to) ^ hash<std::string>()(k.durationType);
-        }
-    };
-}
-
 class Model {
-
 public:
     Model(const std::string& csvFile, const std::string& initialState)
-        : currentState(initialState), age(0), durationInState(0), durationSinceB(0)
+        : age(0), durationInState(0), durationSinceB(0), gen(std::random_device{}())
     {
         loadCSV(csvFile);
+        // map initial state string to index
+        auto it = stateIndex.find(initialState);
+        if (it == stateIndex.end())
+            throw std::runtime_error("Unknown initial state: " + initialState);
+        currentState = it->second;
     }
 
-    std::string getCurrentState() const {
-        return currentState;
-    }
-
+    // Accessors by index
+    std::string getCurrentState() const { return indexToState[currentState]; }
     size_t getAge() const { return age; }
-
     size_t getDurationInState() const { return durationInState; }
-
     size_t getDurationSinceB() const { return durationSinceB; }
 
     void reset(const std::string& state, size_t a, size_t dState, size_t dB) {
-        currentState = state;
+        auto it = stateIndex.find(state);
+        if (it == stateIndex.end())
+            throw std::runtime_error("Unknown reset state: " + state);
+        currentState = it->second;
         age = a;
         durationInState = dState;
         durationSinceB = dB;
     }
 
-    // Optional: expose transitionProbabilities
-    const std::unordered_map<TransitionKey, std::vector<double>>& getTransitionMap() const {
-        return transitionProbabilities;
-    }
-
-    std::vector<std::string> getConnectedStates() const {
-        std::vector<std::string> result;
-        auto it = transitionsFromState.find(currentState);
-        if (it == transitionsFromState.end()) return result;
-
-        for (const auto& key : it->second) {
-            const auto& values = transitionProbabilities.at(key);
-            if (getDuration(key.durationType) < values.size() && values[getDuration(key.durationType)] > 0.0) {
-                result.push_back(key.to);
-            }
-        }
-        return result;
-    }
-
-    std::vector<std::pair<std::string, double>>& getIntensities() const {
-        intensityBuffer.clear();
-        auto it = transitionsFromState.find(currentState);
-        if (it == transitionsFromState.end()) return intensityBuffer;
-
-        for (const auto& key : it->second) {
-            const auto& values = transitionProbabilities.at(key);
-            size_t d = getDuration(key.durationType);
-            if (d < values.size()) {
-                intensityBuffer.emplace_back(key.to, values[d]);
-            }
-        }
-        return intensityBuffer;
-    }
- 
-
+    // Step using integer-based transitions
     void step(double uniformSample) {
-        const auto& options = getIntensities();
-
+        const auto& outs = transitions[currentState];
         double cumulative = 0.0;
-        for (const auto& [state, prob] : options) {
-            cumulative += prob;
+        for (const auto& tr : outs) {
+            size_t d = getDuration(tr.durationType);
+            double p = (d < tr.probabilities.size() ? tr.probabilities[d] : 0.0);
+            cumulative += p;
             if (uniformSample <= cumulative) {
-                updateDurations(state);
-                currentState = state;
+                updateDurations(tr.toIndex);
+                currentState = tr.toIndex;
                 return;
             }
         }
-    }
-
-    std::unordered_map<std::string, std::vector<double>> getTransitionProbabilities(int n) {
-        const int steps = 120;
-        std::unordered_map<std::string, std::vector<int>> stateCounts;
-
-        // Initialize counters for all possible states
-        for (const auto& [key, _] : transitionProbabilities) {
-            stateCounts[key.to] = std::vector<int>(steps, 0);
-            stateCounts[key.from] = std::vector<int>(steps, 0);
+        // if we reach here, maybe due to rounding: pick last
+        if (!outs.empty()) {
+            int last = outs.back().toIndex;
+            updateDurations(last);
+            currentState = last;
         }
-
-        // Save original state and durations
-        std::string originalState = currentState;
-        size_t originalAge = age;
-        size_t originalDurationInState = durationInState;
-        size_t originalDurationSinceB = durationSinceB;
-
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_real_distribution<> dis(0.0, 1.0);
-
-        for (int sim = 0; sim < n; ++sim) {
-            // Reset to initial state/durations
-            currentState = originalState;
-            age = originalAge;
-            durationInState = originalDurationInState;
-            durationSinceB = originalDurationSinceB;
-
-            for (int t = 0; t < steps; ++t) {
-                // Step once using a new random sample
-                double sample = dis(gen);
-                step(sample);
-                stateCounts[currentState][t]++;
-            }
-        }
-
-        // Normalize counts to probabilities
-        std::unordered_map<std::string, std::vector<double>> result;
-        for (const auto& [state, counts] : stateCounts) {
-            std::vector<double> probs(steps);
-            for (int t = 0; t < steps; ++t) {
-                probs[t] = static_cast<double>(counts[t]) / n;
-            }
-            result[state] = probs;
-        }
-
-        return result;
     }
 
 private:
-
-    std::string currentState;
-
+    // internal state as index
+    int currentState;
     size_t age;
-
     size_t durationInState;
-
     size_t durationSinceB;
 
-    std::unordered_map<TransitionKey, std::vector<double>> transitionProbabilities;
+    // mapping from state string <-> index
+    std::unordered_map<std::string, int> stateIndex;
+    std::vector<std::string> indexToState;
 
-    std::unordered_map<std::string, std::vector<TransitionKey>> transitionsFromState;
+    // transitions[fromIndex] = list of outgoing transitions
+    std::vector<std::vector<OutTransition>> transitions;
 
-    mutable std::vector<std::pair<std::string, double>> intensityBuffer;
+    // RNG
+    std::mt19937 gen;
 
     void loadCSV(const std::string& filename) {
-        
         std::ifstream file(filename);
-
-        if (!file.is_open()) throw std::runtime_error("Failed to open file: " + filename);
+        if (!file.is_open())
+            throw std::runtime_error("Failed to open file: " + filename);
 
         std::string line;
-        std::vector<std::string> fromStates, toStates, durations;
+        // read header lines
+        std::getline(file, line);
+        auto fromStates = splitCSVLine(line);
+        std::getline(file, line);
+        auto toStates = splitCSVLine(line);
+        std::getline(file, line);
+        auto durations = splitCSVLine(line);
 
-        // Read metadata rows
-        std::getline(file, line);
-        fromStates = splitCSVLine(line);
-        std::getline(file, line);
-        toStates = splitCSVLine(line);
-        std::getline(file, line);
-        durations = splitCSVLine(line);
+        if (fromStates.size() != toStates.size() || fromStates.size() != durations.size())
+            throw std::runtime_error("CSV header misaligned");
 
-        if (fromStates.size() != toStates.size() || fromStates.size() != durations.size()) {
-            throw std::runtime_error("CSV header lines are misaligned.");
+        size_t cols = fromStates.size();
+        // assign indices to each unique state
+        for (size_t i = 0; i < cols; ++i) {
+            const std::string& f = fromStates[i];
+            const std::string& t = toStates[i];
+            if (!stateIndex.count(f)) {
+                stateIndex[f] = indexToState.size();
+                indexToState.push_back(f);
+            }
+            if (!stateIndex.count(t)) {
+                stateIndex[t] = indexToState.size();
+                indexToState.push_back(t);
+            }
+        }
+        int N = indexToState.size();
+        transitions.assign(N, {});
+
+        // temporary storage of columns per transition key
+        struct Temp { int from, to; DurationType dt; std::vector<double> probs; };
+        std::vector<Temp> tempTrans(cols);
+
+        // initialize Temp entries
+        for (size_t i = 0; i < cols; ++i) {
+            tempTrans[i].from = stateIndex[fromStates[i]];
+            tempTrans[i].to = stateIndex[toStates[i]];
+            const auto& sdt = durations[i];
+            if (sdt == "age")      tempTrans[i].dt = DurationType::Age;
+            else if (sdt == "visit") tempTrans[i].dt = DurationType::Visit;
+            else if (sdt == "state") tempTrans[i].dt = DurationType::State;
+            else throw std::runtime_error("Unknown duration type: " + sdt);
         }
 
-        // Read time-step rows
+        // read rows and fill probabilities
         while (std::getline(file, line)) {
-            auto values = splitCSVLine(line);
-            if (values.size() != fromStates.size()) {
-                throw std::runtime_error("Data row does not match header size.");
-            }
-
-            for (size_t i = 0; i < values.size(); ++i) {
-                TransitionKey key{ fromStates[i], toStates[i], durations[i] };
-                transitionProbabilities[key].push_back(std::stod(values[i]));
+            auto vals = splitCSVLine(line);
+            if (vals.size() != cols)
+                throw std::runtime_error("Data row mismatch");
+            for (size_t i = 0; i < cols; ++i) {
+                tempTrans[i].probs.push_back(std::stod(vals[i]));
             }
         }
 
-        for (const auto& [key, _] : transitionProbabilities) {
-            transitionsFromState[key.from].push_back(key);
+        // build transitions vector
+        for (auto& tt : tempTrans) {
+            OutTransition ot;
+            ot.toIndex = tt.to;
+            ot.durationType = tt.dt;
+            ot.probabilities = std::move(tt.probs);
+            transitions[tt.from].push_back(std::move(ot));
         }
     }
 
     std::vector<std::string> splitCSVLine(const std::string& line) const {
-        std::istringstream stream(line);
-        std::vector<std::string> tokens;
-        std::string token;
-        while (std::getline(stream, token, ';')) {
-            tokens.push_back(token);
+        std::istringstream ss(line);
+        std::vector<std::string> toks;
+        std::string tok;
+        while (std::getline(ss, tok, ';')) toks.push_back(tok);
+        return toks;
+    }
+
+    size_t getDuration(DurationType dt) const {
+        switch (dt) {
+        case DurationType::Age:   return age;
+        case DurationType::Visit: return durationSinceB;
+        case DurationType::State: return durationInState;
         }
-        return tokens;
+        return 0;
     }
 
-    size_t getDuration(const std::string& type) const {
-        if (type == "age") return age;
-        if (type == "visit") return durationSinceB;
-        if (type == "state") return durationInState;
-        throw std::runtime_error("Unknown duration type: " + type);
-    }
-
-    void updateDurations(const std::string& nextState) {
+    void updateDurations(int nextIndex) {
         ++age;
-        if (nextState == currentState) {
-            ++durationInState;
-        }
-        else {
-            durationInState = 0;
-        }
+        if (nextIndex == currentState) ++durationInState;
+        else durationInState = 0;
 
-        if (currentState == "B" || durationSinceB > 0) {
-            ++durationSinceB;
-        }
-
-        if (nextState == "B" && currentState != "B") {
-            durationSinceB = 0;
-        }
+        if (currentState == stateIndex["B"] || durationSinceB > 0) ++durationSinceB;
+        if (nextIndex == stateIndex["B"] && nextIndex != currentState) durationSinceB = 0;
     }
 };
-
