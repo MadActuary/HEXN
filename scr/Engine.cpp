@@ -6,30 +6,48 @@ Engine::Engine(Model& model, const Payoff& payoff, int simulations)
 std::unordered_map<std::string, std::vector<double>> Engine::getCashflow(int moment, int steps) {
 
     std::unordered_map<std::string, std::vector<int>> stateCounts;
-    for (const auto& [key, _] : model.getTransitionMap()) {
+
+    for (const auto& [key, _] : model.getTransitionMap()) 
+    {
+
         stateCounts[key.from] = std::vector<int>(steps + 1, 0);
+
         stateCounts[key.to] = std::vector<int>(steps + 1, 0);
+
     }
 
     std::string originalState = model.getCurrentState();
+
     size_t originalAge = model.getAge();
+
     size_t originalInState = model.getDurationInState();
+
     size_t originalSinceB = model.getDurationSinceB();
 
     std::vector<double> uniforms(steps * simulations);
+
     std::uniform_real_distribution<> dis(0.0, 1.0);
+
     std::mt19937 gen{ std::random_device{}() };
+
     std::generate(uniforms.begin(), uniforms.end(), [&] { return dis(gen); });
 
-    for (int i = 0; i < simulations; ++i) {
+    for (int i = 0; i < simulations; ++i)
+    {
+
         model.reset(originalState, originalAge, originalInState, originalSinceB);
+
         stateCounts[model.getCurrentState()][0]++;
 
         auto base = uniforms.data() + i * steps;
 
-        for (int t = 1; t <= steps; ++t) {
+        for (int t = 1; t <= steps; ++t) 
+        {
+
             model.step(base[t - 1]);
+
             stateCounts[model.getCurrentState()][t]++;
+
         }
     }
 
@@ -37,15 +55,25 @@ std::unordered_map<std::string, std::vector<double>> Engine::getCashflow(int mom
 
     std::vector<double> total(steps + 1, 0.0);
 
-    for (const auto& [state, counts] : stateCounts) {
+    for (const auto& [state, counts] : stateCounts) 
+    {
+
         std::vector<double> values(steps + 1, 0.0);
+
         for (int t = 0; t <= steps; ++t) {
+
             double prob = static_cast<double>(counts[t]) / simulations;
+
             double val = payoff.evaluate(state, model.getDurationInState());
+
             values[t] = prob * val;
+
             total[t] += values[t];
+
         }
+
         cashflows[state] = values;
+
     }
 
     cashflows["Total"] = total;
