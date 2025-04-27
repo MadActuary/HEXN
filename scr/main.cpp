@@ -29,7 +29,7 @@ int main() {
     //execute();
 
     //Time measurement command
-    auto stats = MeasureExecution(execute, 100, "New benchmark");
+    auto stats = MeasureExecution(execute, 100, "Array med print");
 
     return 0;
 }

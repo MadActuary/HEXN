@@ -11,6 +11,11 @@
 #include <random>
 #include <stdexcept>
 #include <iomanip>
+#include <utility>
+#include <cstddef>
+#include <array>
+#include <span>
+#include <algorithm>
 
 struct TransitionKey {
 
@@ -36,15 +41,16 @@ namespace std {
 class Model {
 
 public:
+
+    static constexpr size_t MAX_INTENSITIES = 16;
+
     Model(const std::string& csvFile, const std::string& initialState)
         : currentState(initialState), age(0), durationInState(0), durationSinceB(0)
     {
         loadCSV(csvFile);
     }
 
-    std::string getCurrentState() const {
-        return currentState;
-    }
+    std::string getCurrentState() const { return currentState; }
 
     size_t getAge() const { return age; }
 
@@ -53,48 +59,35 @@ public:
     size_t getDurationSinceB() const { return durationSinceB; }
 
     void reset(const std::string& state, size_t a, size_t dState, size_t dB) {
+
         currentState = state;
         age = a;
         durationInState = dState;
         durationSinceB = dB;
+
     }
 
-    // Optional: expose transitionProbabilities
-    const std::unordered_map<TransitionKey, std::vector<double>>& getTransitionMap() const {
-        return transitionProbabilities;
-    }
+    std::span<const std::pair<std::string, double>> getIntensities() const {
 
-    std::vector<std::string> getConnectedStates() const {
-        std::vector<std::string> result;
+        size_t writePos = 0;
         auto it = transitionsFromState.find(currentState);
-        if (it == transitionsFromState.end()) return result;
-
-        for (const auto& key : it->second) {
-            const auto& values = transitionProbabilities.at(key);
-            if (getDuration(key.durationType) < values.size() && values[getDuration(key.durationType)] > 0.0) {
-                result.push_back(key.to);
+        if (it != transitionsFromState.end()) {
+            for (auto const& key : it->second) {
+                if (writePos >= MAX_INTENSITIES) break;  // guard overflow
+                auto pit = transitionProbabilities.find(key);
+                if (pit == transitionProbabilities.end()) continue;
+                auto const& values = pit->second;
+                size_t d = getDuration(key.durationType);
+                if (d < values.size())
+                    buffer[writePos++] = { key.to, values[d] };
             }
         }
-        return result;
+        bufferSize = writePos;
+        return { buffer.data(), bufferSize };
     }
-
-    std::vector<std::pair<std::string, double>>& getIntensities() const {
-        intensityBuffer.clear();
-        auto it = transitionsFromState.find(currentState);
-        if (it == transitionsFromState.end()) return intensityBuffer;
-
-        for (const auto& key : it->second) {
-            const auto& values = transitionProbabilities.at(key);
-            size_t d = getDuration(key.durationType);
-            if (d < values.size()) {
-                intensityBuffer.emplace_back(key.to, values[d]);
-            }
-        }
-        return intensityBuffer;
-    }
- 
 
     void step(double uniformSample) {
+
         const auto& options = getIntensities();
 
         double cumulative = 0.0;
@@ -108,69 +101,19 @@ public:
         }
     }
 
-    std::unordered_map<std::string, std::vector<double>> getTransitionProbabilities(int n) {
-        const int steps = 120;
-        std::unordered_map<std::string, std::vector<int>> stateCounts;
-
-        // Initialize counters for all possible states
-        for (const auto& [key, _] : transitionProbabilities) {
-            stateCounts[key.to] = std::vector<int>(steps, 0);
-            stateCounts[key.from] = std::vector<int>(steps, 0);
-        }
-
-        // Save original state and durations
-        std::string originalState = currentState;
-        size_t originalAge = age;
-        size_t originalDurationInState = durationInState;
-        size_t originalDurationSinceB = durationSinceB;
-
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_real_distribution<> dis(0.0, 1.0);
-
-        for (int sim = 0; sim < n; ++sim) {
-            // Reset to initial state/durations
-            currentState = originalState;
-            age = originalAge;
-            durationInState = originalDurationInState;
-            durationSinceB = originalDurationSinceB;
-
-            for (int t = 0; t < steps; ++t) {
-                // Step once using a new random sample
-                double sample = dis(gen);
-                step(sample);
-                stateCounts[currentState][t]++;
-            }
-        }
-
-        // Normalize counts to probabilities
-        std::unordered_map<std::string, std::vector<double>> result;
-        for (const auto& [state, counts] : stateCounts) {
-            std::vector<double> probs(steps);
-            for (int t = 0; t < steps; ++t) {
-                probs[t] = static_cast<double>(counts[t]) / n;
-            }
-            result[state] = probs;
-        }
-
-        return result;
-    }
-
 private:
 
     std::string currentState;
-
     size_t age;
-
     size_t durationInState;
-
     size_t durationSinceB;
-
     std::unordered_map<TransitionKey, std::vector<double>> transitionProbabilities;
-
     std::unordered_map<std::string, std::vector<TransitionKey>> transitionsFromState;
 
-    mutable std::vector<std::pair<std::string, double>> intensityBuffer;
+    // For getIntensities()
+
+    mutable std::array<std::pair<std::string, double>, MAX_INTENSITIES> buffer{};
+    mutable size_t bufferSize = 0;
 
     void loadCSV(const std::string& filename) {
         
@@ -208,6 +151,12 @@ private:
 
         for (const auto& [key, _] : transitionProbabilities) {
             transitionsFromState[key.from].push_back(key);
+        }
+
+        for (auto const& [state, keys] : transitionsFromState) {
+            if (keys.size() > bufferSize)
+                bufferSize = keys.size();
+            
         }
     }
 

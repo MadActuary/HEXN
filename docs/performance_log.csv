@@ -1,3 +1,5 @@
 Date;Comment;Runs(n);MeanTime(s);VarianceTime;PeakMemory(MB)
-26/04/2025;Benchmark;100;1,915583;0,022274;4,988281
-26/04/2025;New benchmark;100;2,380454;0,047312;5,097656
+26/04/2025;Benchmark uden print;100;1,915583;0,022274;4,988281
+26/04/2025;benchmark med print;100;2,380454;0,047312;5,097656
+27/04/2025;Array med print;100;2,267144;0,023763;5,09375
+;;;;;
