@@ -20,7 +20,7 @@ void execute() {
 
     Engine engine(model, mydanishPublicBenefits, 100000);
 
-    auto result = engine.getCashflow(1, 120, true, "../docs/expectedPayments.CSV"); // Second moment = variance component
+    auto result = engine.getCashflow(1, 120, false, "../docs/expectedPayments.CSV"); // Second moment = variance component
 
 }
 
@@ -29,7 +29,7 @@ int main() {
     //execute();
 
     //Time measurement command
-    auto stats = MeasureExecution(execute, 100, "New benchmark");
+    auto stats = MeasureExecution(execute, 1, "Absorbing state detection");
 
     return 0;
 }

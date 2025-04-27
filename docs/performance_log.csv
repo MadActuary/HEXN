@@ -1,3 +1,7 @@
 Date;Comment;Runs(n);MeanTime(s);VarianceTime;PeakMemory(MB)
 26/04/2025;Benchmark;100;1,915583;0,022274;4,988281
 26/04/2025;New benchmark;100;2,380454;0,047312;5,097656
+26/04/2025;Absorbing state detection;100;2,14894;0,019992;5
+2025-04-27;"Absorbing state detection";1;3,826480;0,000000;5,062500
+2025-04-27;"Absorbing state detection";1;3,772030;0,000000;4,910156
+2025-04-27;"Absorbing state detection";1;2,802043;0,000000;5,082031
