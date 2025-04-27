@@ -6,7 +6,9 @@ How to build the application: ...
 
 cmake? 
 
-
+How to use the application: 
+toHEXN <- intensities in CSV format
+fromHEXN <- cashflows and performance measures
 
 Performance is measured on following hardware: 
 Processor: Intel(R) Core(TM) i7-1065G7 CPU @ 1.30GHz   1.50 GHz
