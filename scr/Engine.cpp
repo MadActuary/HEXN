@@ -40,7 +40,7 @@ Engine::getCashflow(int moment, int steps, bool print, const std::string& fileNa
 
     // t=1..steps
     for (int t = 1; t <= steps; ++t) {
-        model.stepBatch(&uniforms[(t - 1) * simulations]);
+        model.stepBatchLUT(&uniforms[(t - 1) * simulations]);
         const auto& sts = model.getCurrentStates();
         const auto& durs = model.getDurationsInState();
         for (int i = 0; i < simulations; ++i) {

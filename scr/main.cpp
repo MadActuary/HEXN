@@ -49,6 +49,6 @@ int main() {
 
     //execution();
 
-    MeasureExecution(execution, 1, "1");
+    MeasureExecution(execution, 10, "Test");
    
 }

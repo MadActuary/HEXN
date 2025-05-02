@@ -7,16 +7,16 @@
 #include <vector>
 #include <iostream>
 #include <cstring>
+#include <CL/cl.h>
 
 // ─────────────────────────────────────────────────────────────────────────────
-// OpenCL kernel source (embedded)
+// OpenCL kernel source (embedded) — single‐precision only
 // ─────────────────────────────────────────────────────────────────────────────
 static const char* stepBatchLUT_cl = R"CLC(
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #define MAX_DUR_TYPES 4
 
 __kernel void stepBatchLUT(
-    __global const double* uniforms,
+    __global const float*  uniforms,   // one float per individual
     __global ushort*       curState,
     __global uint*         age,
     __global uint*         durInState,
@@ -27,10 +27,10 @@ __kernel void stepBatchLUT(
     const uint             lutBuckets)
 {
     size_t i = get_global_id(0);
-    double u = uniforms[i];
+    float u = uniforms[i];
     int idx = (int)(u * lutBuckets);
-    if (idx < 0) idx = 0;
-    else if (idx >= lutBuckets) idx = lutBuckets - 1;
+    if (idx < 0)                 idx = 0;
+    else if (idx >= (int)lutBuckets) idx = (int)lutBuckets - 1;
 
     ushort s  = curState[i];
     uchar  dt = stateDType[s];
@@ -47,10 +47,11 @@ __kernel void stepBatchLUT(
 )CLC";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Constructor & CSV loading
+// Constructor & CSV loading (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 Model::Model(const std::string& csvFile) {
     loadCSV(csvFile);
+    buildLUT(1024);
 }
 
 void Model::loadCSV(const std::string& filename) {
@@ -75,7 +76,6 @@ void Model::loadCSV(const std::string& filename) {
     if (toStates.size() != N || durTypes.size() != N)
         throw std::runtime_error("CSV header misaligned");
 
-    // Read data columns
     std::vector<std::vector<double>> cols(N);
     while (std::getline(file, line)) {
         std::istringstream ss(line);
@@ -87,7 +87,6 @@ void Model::loadCSV(const std::string& filename) {
         }
     }
 
-    // Build transitions & flat probability buffer
     transitions.reserve(N);
     for (size_t i = 0; i < N; ++i) {
         StateID f = getStateID(fromStates[i]);
@@ -99,7 +98,6 @@ void Model::loadCSV(const std::string& filename) {
         transitions.push_back({ f, t, d, off, len });
     }
 
-    // Sort & index by 'from'
     std::sort(transitions.begin(), transitions.end(),
         [](auto const& a, auto const& b) { return a.from < b.from; });
     size_t S = stateNames.size();
@@ -114,7 +112,6 @@ void Model::loadCSV(const std::string& filename) {
         if (i == T - 1) state_end[s] = T;
     }
 }
-
 Model::StateID Model::getStateID(const std::string& s) {
     auto it = stateIndex.find(s);
     if (it != stateIndex.end()) return it->second;
@@ -132,7 +129,7 @@ uint8_t Model::decodeDurType(const std::string& s) const {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scalar stepBatch (original sampler)
+// Scalar stepBatch (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 void Model::stepBatch(const double* uniforms) {
     StateID B_id = stateIndex.count("B") ? stateIndex.at("B") : StateID(-1);
@@ -159,7 +156,12 @@ void Model::stepBatch(const double* uniforms) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// buildLUT (CPU-only)
+// buildLUT / initializeBatch (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
+// … your existing buildLUT and initializeBatch implementations …
+
+// ─────────────────────────────────────────────────────────────────────────────
+// // buildLUT (CPU-only)
 // ─────────────────────────────────────────────────────────────────────────────
 void Model::buildLUT(int buckets) {
     lutBuckets = buckets;
@@ -225,8 +227,7 @@ void Model::initializeBatch(size_t batchSize,
     durSinceB.assign(M, initDurSinceB);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// initOpenCL (C API) with GPU selection & logging
+// initOpenCL: allocate buf_uniforms as float*M, compile kernel, etc.
 // ─────────────────────────────────────────────────────────────────────────────
 void Model::initOpenCL() {
     if (clReady) return;
@@ -236,59 +237,51 @@ void Model::initOpenCL() {
     err = clGetPlatformIDs(1, &clPlatform, nullptr);
     if (err != CL_SUCCESS) throw std::runtime_error("clGetPlatformIDs failed");
 
-    // 2) Try GPU, else CPU
+    // 2) Device selection
     cl_uint gpuCount = 0;
     err = clGetDeviceIDs(clPlatform, CL_DEVICE_TYPE_GPU, 0, nullptr, &gpuCount);
     if (err != CL_SUCCESS || gpuCount == 0) {
-        std::cerr << "[OpenCL] No GPU found, falling back to CPU.\n";
+        std::cerr << "[OpenCL] No GPU, falling back to CPU\n";
         err = clGetDeviceIDs(clPlatform, CL_DEVICE_TYPE_CPU, 1, &clDevice, nullptr);
-        if (err != CL_SUCCESS)
-            throw std::runtime_error("No CPU device found");
+        if (err != CL_SUCCESS) throw std::runtime_error("No CPU device found");
     }
     else {
-        std::vector<cl_device_id> gpus(gpuCount);
-        err = clGetDeviceIDs(clPlatform, CL_DEVICE_TYPE_GPU, gpuCount, gpus.data(), nullptr);
-        if (err != CL_SUCCESS) throw std::runtime_error("Failed to get GPU device IDs");
-        clDevice = gpus[0];
+        std::vector<cl_device_id> g(gpuCount);
+        clGetDeviceIDs(clPlatform, CL_DEVICE_TYPE_GPU, gpuCount, g.data(), nullptr);
+        clDevice = g[0];
     }
 
-    // 3) Log device name & type
+    // 3) Log device
     {
-        char name[256];
-        cl_device_type type;
+        char name[256]; cl_device_type type;
         clGetDeviceInfo(clDevice, CL_DEVICE_NAME, sizeof(name), name, nullptr);
         clGetDeviceInfo(clDevice, CL_DEVICE_TYPE, sizeof(type), &type, nullptr);
         std::cerr << "[OpenCL] Using device: " << name
             << " (" << ((type & CL_DEVICE_TYPE_GPU) ? "GPU" : "CPU") << ")\n";
     }
 
-    // 4) Context
+    // 4) Context & queue
     clCtx = clCreateContext(nullptr, 1, &clDevice, nullptr, nullptr, &err);
-    if (err != CL_SUCCESS) throw std::runtime_error("clCreateContext failed");
+    clQueue = clCreateCommandQueueWithProperties(clCtx, clDevice, nullptr, &err);
 
-    // 5) Command queue (modern API)
-    cl_queue_properties props[] = { CL_QUEUE_PROPERTIES, 0, 0 };
-    clQueue = clCreateCommandQueueWithProperties(clCtx, clDevice, props, &err);
-    if (err != CL_SUCCESS) throw std::runtime_error("clCreateCommandQueueWithProperties failed");
-
-    // 6) Program & kernel
+    // 5) Build program
     const char* src = stepBatchLUT_cl;
-    size_t len = std::strlen(stepBatchLUT_cl);
+    size_t len = std::strlen(src);
     clProgram = clCreateProgramWithSource(clCtx, 1, &src, &len, &err);
-    if (err != CL_SUCCESS) throw std::runtime_error("clCreateProgramWithSource failed");
     err = clBuildProgram(clProgram, 1, &clDevice, nullptr, nullptr, nullptr);
     if (err != CL_SUCCESS) {
-        size_t logSize;
+        size_t logSize = 0;
         clGetProgramBuildInfo(clProgram, clDevice, CL_PROGRAM_BUILD_LOG, 0, nullptr, &logSize);
         std::vector<char> log(logSize);
         clGetProgramBuildInfo(clProgram, clDevice, CL_PROGRAM_BUILD_LOG, logSize, log.data(), nullptr);
-        throw std::runtime_error("clBuildProgram failed:\n" + std::string(log.data()));
+        std::cerr << "===== OpenCL Build Log =====\n" << log.data() << "\n============================\n";
+        throw std::runtime_error("clBuildProgram failed; see log above");
     }
-    clKernel = clCreateKernel(clProgram, "stepBatchLUT", &err);
-    if (err != CL_SUCCESS) throw std::runtime_error("clCreateKernel failed");
 
-    // 7) Buffers & args
-    buf_uniforms = clCreateBuffer(clCtx, CL_MEM_READ_ONLY, sizeof(double) * M, nullptr, &err);
+    clKernel = clCreateKernel(clProgram, "stepBatchLUT", &err);
+
+    // 6) Buffers & args
+    buf_uniforms = clCreateBuffer(clCtx, CL_MEM_READ_ONLY, sizeof(float) * M, nullptr, &err);
     buf_curState = clCreateBuffer(clCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
         sizeof(StateID) * M, curState.data(), &err);
     buf_age = clCreateBuffer(clCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
@@ -300,8 +293,7 @@ void Model::initOpenCL() {
     buf_lut = clCreateBuffer(clCtx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
         sizeof(StateID) * lut.size(), lut.data(), &err);
     buf_stateDType = clCreateBuffer(clCtx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-        sizeof(uint8_t) * stateDType.size(),
-        stateDType.data(), &err);
+        sizeof(uint8_t) * stateDType.size(), stateDType.data(), &err);
     if (err != CL_SUCCESS) throw std::runtime_error("clCreateBuffer failed");
 
     int arg = 0;
@@ -326,33 +318,34 @@ void Model::stepBatchLUT(const double* uniforms) {
     if (!clReady) initOpenCL();
     cl_int err;
 
-    // Write uniforms
+    // 1) Convert host uniforms → float
+    std::vector<float> u_floats(M);
+    for (size_t i = 0; i < M; ++i)
+        u_floats[i] = static_cast<float>(uniforms[i]);
+
+    // 2) Write buffer
     err = clEnqueueWriteBuffer(clQueue, buf_uniforms, CL_FALSE,
-        0, sizeof(double) * M, uniforms,
+        0, sizeof(float) * M,
+        u_floats.data(),
         0, nullptr, nullptr);
     if (err != CL_SUCCESS) throw std::runtime_error("clEnqueueWriteBuffer failed");
 
-    // Launch kernel
+    // 3) Launch
     size_t global = M;
-    err = clEnqueueNDRangeKernel(clQueue, clKernel,
-        1, nullptr,
+    err = clEnqueueNDRangeKernel(clQueue, clKernel, 1, nullptr,
         &global, nullptr,
         0, nullptr, nullptr);
     if (err != CL_SUCCESS) throw std::runtime_error("clEnqueueNDRangeKernel failed");
 
-    // Read back
+    // 4) Read back
     clEnqueueReadBuffer(clQueue, buf_curState, CL_TRUE, 0,
-        sizeof(StateID) * M, curState.data(),
-        0, nullptr, nullptr);
+        sizeof(StateID) * M, curState.data(), 0, nullptr, nullptr);
     clEnqueueReadBuffer(clQueue, buf_age, CL_TRUE, 0,
-        sizeof(uint32_t) * M, age.data(),
-        0, nullptr, nullptr);
+        sizeof(uint32_t) * M, age.data(), 0, nullptr, nullptr);
     clEnqueueReadBuffer(clQueue, buf_durInState, CL_TRUE, 0,
-        sizeof(uint32_t) * M, durInState.data(),
-        0, nullptr, nullptr);
+        sizeof(uint32_t) * M, durInState.data(), 0, nullptr, nullptr);
     clEnqueueReadBuffer(clQueue, buf_durSinceB, CL_TRUE, 0,
-        sizeof(uint32_t) * M, durSinceB.data(),
-        0, nullptr, nullptr);
+        sizeof(uint32_t) * M, durSinceB.data(), 0, nullptr, nullptr);
 
     clFinish(clQueue);
 }
