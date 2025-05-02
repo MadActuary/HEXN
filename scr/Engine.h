@@ -20,3 +20,4 @@ private:
     void exportCashflowsCSV(const std::string& filename,
         const std::unordered_map<std::string, std::vector<double>>& cashflows);
 };
+

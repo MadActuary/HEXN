@@ -47,6 +47,8 @@ void execution() {
 
 int main() {
 
-    MeasureExecution(execution, 100, "DOP CHATGPT med print");
+    //execution();
+
+    MeasureExecution(execution, 5, "LUT med print");
    
 }
