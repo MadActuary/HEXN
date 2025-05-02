@@ -1,127 +1,96 @@
 ﻿#include "Engine.h"
+#include "formatDouble.h"
+#include <random>
 #include <fstream>
 #include <algorithm>
 #include <stdexcept>
-#include <string>
-
-#include "formatDouble.h"
+#include <iostream>
 
 Engine::Engine(Model& model, const Payoff& payoff, int simulations)
     : model(model), payoff(payoff), simulations(simulations) {}
 
-void Engine::exportCashflowsCSV(const std::string& filename, std::unordered_map<std::string, std::vector<double>> cashflows) {
-    // 2) collect and sort the state names (excluding "Total"), then add "Total" last
-    std::vector<std::string> states;
-
-    for (auto& kv : cashflows) {
-        if (kv.first != "Total")
-            states.push_back(kv.first);
-    }
-    std::sort(states.begin(), states.end());
-    states.push_back("Total");
-
-    // 3) open the output file
-    std::ofstream ofs(filename);
-    if (!ofs.is_open()) {
-        throw std::runtime_error("Engine::exportCashflowsCSV – cannot open file: " + filename);
-    }
-
-    // 4) write header row
-    for (size_t i = 0; i < states.size(); ++i) {
-        ofs << states[i]
-            << (i + 1 < states.size() ? ";" : "\n");
-    }
-
-    // 5) write one row per t = 0..steps
-    for (int t = 0; t <= cashflows.begin()->second.size() - 1; ++t) {
-        for (size_t i = 0; i < states.size(); ++i) {
-            const auto& st = states[i];
-            ofs << formatDouble(cashflows[st][t])
-                << (i + 1 < states.size() ? ";" : "\n");
-        }
-    }
-
-    ofs.close();
-}
-
-
 std::unordered_map<std::string, std::vector<double>>
-
 Engine::getCashflow(int moment, int steps, bool print, const std::string& fileName) {
-    // 1) Prepare accumulators
-    //   sums[state][t] = sum of payoffs at time t for that state
-    std::unordered_map<std::string, std::vector<double>> sums;
-    std::vector<double> totalSums(steps + 1, 0.0);
+    auto initStates = model.getCurrentStates();
+    auto initDurState = model.getDurationsInState();
+    std::string origState = model.getStateNames()[initStates[0]];
+    uint32_t origDur = initDurState[0];
+    model.initializeBatch(static_cast<size_t>(simulations), origState, 0, origDur, 0);
 
-    // 2) Remember original model‐state
-    std::string origState = model.getCurrentState();
-    size_t      origAge = model.getAge();
-    size_t      origInState = model.getDurationInState();
-    size_t      origSinceB = model.getDurationSinceB();
+    std::unordered_map<std::string, std::vector<double>> sums;
+    std::vector<double> totalSums(static_cast<size_t>(steps) + 1, 0.0);
 
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
+    size_t M = static_cast<size_t>(simulations);
+    std::vector<double> uniforms(static_cast<size_t>(steps) * M);
+    for (auto& u : uniforms) u = dis(gen);
 
-    // 3) Monte Carlo
-    for (int sim = 0; sim < simulations; ++sim) {
-        model.reset(origState, origAge, origInState, origSinceB);
+    const auto& names = model.getStateNames();
+    const auto& states0 = model.getCurrentStates();
+    const auto& durs0 = model.getDurationsInState();
+    for (size_t i = 0; i < M; ++i) {
+        std::string s = names[states0[i]];
+        double pv = payoff.evaluate(s, durs0[i]);
+        auto& v = sums.emplace(s, std::vector<double>(static_cast<size_t>(steps) + 1, 0.0)).first->second;
+        v[0] += pv;
+        totalSums[0] += pv;
+    }
 
-        // t = 0
-        {
-            auto s = model.getCurrentState();
-            auto d = model.getDurationInState();
-            double pv = payoff.evaluate(s, d);
-            auto& vec = sums
-                .emplace(s, std::vector<double>(steps + 1, 0.0))
-                .first->second;
-            vec[0] += pv;
-            totalSums[0] += pv;
-        }
-
-        // t = 1 … steps
-        for (int t = 1; t <= steps; ++t) {
-            double u = dis(gen);
-            model.step(u);
-
-            auto s = model.getCurrentState();
-            auto d = model.getDurationInState();
-            double pv = pow(payoff.evaluate(s, d), moment);
-
-            auto& vec = sums
-                .emplace(s, std::vector<double>(steps + 1, 0.0))
-                .first->second;
-            vec[t] += pv;
-            totalSums[t] += pv;
+    for (int t = 1; t <= steps; ++t) {
+        model.stepBatch(&uniforms[static_cast<size_t>(t - 1) * M]);
+        const auto& sts = model.getCurrentStates();
+        const auto& durs = model.getDurationsInState();
+        for (size_t i = 0; i < M; ++i) {
+            std::string s = names[sts[i]];
+            double pv = std::pow(payoff.evaluate(s, durs[i]), static_cast<double>(moment));
+            auto& v = sums.emplace(s, std::vector<double>(static_cast<size_t>(steps) + 1, 0.0)).first->second;
+            v[static_cast<size_t>(t)] += pv;
+            totalSums[static_cast<size_t>(t)] += pv;
         }
     }
 
-    // 4) Build averages
     std::unordered_map<std::string, std::vector<double>> cashflows;
-    for (auto& entry : sums) {
-        const auto& state = entry.first;
-        auto& sumV = entry.second;
-        std::vector<double> avg(steps + 1);
-        for (int t = 0; t <= steps; ++t) {
-            avg[t] = sumV[t] / simulations;
+    for (auto& kv : sums) {
+        auto& sumV = kv.second;
+        std::vector<double> avg(sumV.size());
+        for (size_t t = 0; t < sumV.size(); ++t) {
+            avg[t] = sumV[t] / static_cast<double>(simulations);
         }
-        cashflows[state] = std::move(avg);
+        cashflows[kv.first] = std::move(avg);
     }
 
-    // 5) Total
-    std::vector<double> totalAvg(steps + 1);
-    for (int t = 0; t <= steps; ++t) {
-        totalAvg[t] = totalSums[t] / simulations;
+    std::vector<double> tot(totalSums.size());
+    for (size_t t = 0; t < totalSums.size(); ++t) {
+        tot[t] = totalSums[t] / static_cast<double>(simulations);
     }
-    cashflows["Total"] = std::move(totalAvg);
+    cashflows["Total"] = std::move(tot);
 
-    if (print == 1) 
-    {
+    if (print) {
         exportCashflowsCSV(fileName, cashflows);
-        std::cout
-            << "Cashflows outputted succesfully" << "\n";
+        std::cout << "Cashflows outputted successfully\n";
     }
-
     return cashflows;
 }
 
+void Engine::exportCashflowsCSV(const std::string& filename,
+    const std::unordered_map<std::string, std::vector<double>>& cashflows) {
+    std::vector<std::string> states;
+    for (auto const& kv : cashflows) if (kv.first != "Total") states.push_back(kv.first);
+    std::sort(states.begin(), states.end());
+    states.push_back("Total");
+
+    std::ofstream ofs(filename);
+    if (!ofs.is_open()) throw std::runtime_error("Cannot open " + filename);
+    for (size_t i = 0; i < states.size(); ++i) {
+        ofs << states[i] << (i + 1 < states.size() ? ";" : "\n");
+    }
+    size_t T = cashflows.begin()->second.size();
+    for (size_t t = 0; t < T; ++t) {
+        for (size_t i = 0; i < states.size(); ++i) {
+            ofs << formatDouble(cashflows.at(states[i])[t])
+                << (i + 1 < states.size() ? ";" : "\n");
+        }
+    }
+}

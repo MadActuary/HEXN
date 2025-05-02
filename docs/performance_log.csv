@@ -2,3 +2,5 @@ Date;Comment;Runs(n);MeanTime(s);VarianceTime;PeakMemory(MB)
 26/04/2025;Benchmark uden print;100;1,915583;0,022274;4,988281
 26/04/2025;benchmark med print;100;2,380454;0,047312;5,097656
 27/04/2025;Array med print;100;2,218582;0,045414;5,082031
+;;;;;
+2025-04-29;"DOP CHATGPT med print";100;1,406029;0,068380;98,000000

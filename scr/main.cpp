@@ -1,37 +1,52 @@
+// main.cpp
 #include "Model.h"
-#include "Payoff.h"
-#include "DanishPublicBenefits.h"
 #include "Engine.h"
+#include "Payoff.h"
 #include "ExecutionStats.h"
 
-#include <random>
-#include <numeric>
-#include <cmath>  
+#include <iostream>
+#include <string>
 
-using namespace std::chrono;
+// Example Payoff: reward = 1.0 for state "B", 0.0 otherwise
+struct DemoPayoff : Payoff {
+    double evaluate(const std::string& state, size_t duration) const override {
+        return 100.0;
+    }
+};
 
-void execute() {
+void execution() {
+    std::string csvFile = "../docs/transitions.csv";
+    std::string initialState = "A";
+    int         steps = 120;
+    int         sims = 100000;
+    std::string outFile = "../docs/test.csv";
 
-    Model model("../docs/transitions.csv", "A");
+    // 1) Load transition model
+    Model model(csvFile);
+    // 2) Initialize a single "prototype" path to capture origin state/durations
+    model.initializeBatch(
+        1, 
+        initialState, 
+        /*age=*/0, 
+        /*durState=*/0, 
+        /*durSinceB=*/0);
 
-    sys_days today = floor<days>(system_clock::now());
+    // 3) Set up payoff and engine
+    DemoPayoff payoff;
+    Engine engine(model, payoff, sims);
 
-    DanishPublicBenefits mydanishPublicBenefits(100, 0, today);
-
-    Engine engine(model, mydanishPublicBenefits, 100000);
-
-    auto result = engine.getCashflow(1, 120, true, "../docs/expectedPayments.CSV"); // Second moment = variance component
+    // 4) Run Monte Carlo, moment=1 (expected value)
+    auto cashflows = engine.getCashflow(
+        1,
+        steps,
+        true,
+        outFile
+    );
 
 }
 
 int main() {
 
-    //execute();
-
-    //Time measurement command
-    auto stats = MeasureExecution(execute, 100, "Array med print");
-
-    return 0;
+    MeasureExecution(execution, 100, "DOP CHATGPT med print");
+   
 }
-
-
