@@ -49,6 +49,6 @@ int main() {
 
     //execution();
 
-    MeasureExecution(execution, 5, "LUT med print");
+    MeasureExecution(execution, 1, "1");
    
 }
